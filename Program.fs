@@ -107,3 +107,69 @@ type TelemetryState() =
         lock gate (fun () -> last)
     member _.Set(v: Sample) =
         lock gate (fun () -> last <- Some v)
+// ---------- Background sampler (hosted service) ----------
+type Sampler(state: TelemetryState, iface: string) =
+    inherit BackgroundService()
+
+    override _.ExecuteAsync(stoppingToken: CancellationToken) : Task =
+        task {
+            while not stoppingToken.IsCancellationRequested do
+                let now = DateTime.UtcNow
+
+                let temp = Linux.cpuTempC()
+                let load = Linux.loadAvg()
+                let mem = Linux.memInfo()
+                let disk = Linux.diskRoot()
+                let net = Linux.netBytes iface
+
+                let (l1, l5, l15) =
+                    match load with
+                    | Some (a,b,c) -> (a, b, c)
+                    | None -> (None, None, None)
+
+                let (mt, ma) =
+                    match mem with
+                    | Some (t,a) -> (Some t, Some a)
+                    | None -> (None, None)
+
+                let (dt, da) =
+                    match disk with
+                    | Some (t,a) -> (Some t, Some a)
+                    | None -> (None, None)
+
+                let (rx, tx) =
+                    match net with
+                    | Some (r,t) -> (Some r, Some t)
+                    | None -> (None, None)
+
+                // Simple alerts (threshold based)
+                let alerts =
+                    [ match temp with
+                      | Some t when t >= 75.0 -> yield (sprintf "High CPU temp: %.1fC" t)
+                      | _ -> ()
+
+                      match ma, mt with
+                      | Some avail, Some total when total > 0L ->
+                          let usedPct = 100.0 * (1.0 - float avail / float total)
+                          if usedPct >= 90.0 then yield (sprintf "High memory usage: %.1f%%" usedPct)
+                      | _ -> ()
+
+                      match da, dt with
+                      | Some availB, Some totalB when totalB > 0L ->
+                          let usedPct = 100.0 * (1.0 - float availB / float totalB)
+                          if usedPct >= 90.0 then yield (sprintf "Low disk space: %.1f%% used" usedPct)
+                      | _ -> () ]
+
+                let sample =
+                    { TimestampUtc = now
+                      CpuTempC = temp
+                      Load1 = l1; Load5 = l5; Load15 = l15
+                      MemTotalKb = mt; MemAvailKb = ma
+                      DiskTotalBytes = dt; DiskAvailBytes = da
+                      RxBytes = rx; TxBytes = tx
+                      Alerts = alerts }
+
+                state.Set(sample)
+
+                do! Task.Delay(TimeSpan.FromSeconds(2.0), stoppingToken)
+        }
