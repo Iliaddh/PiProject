@@ -173,3 +173,57 @@ type Sampler(state: TelemetryState, iface: string) =
 
                 do! Task.Delay(TimeSpan.FromSeconds(2.0), stoppingToken)
         }
+// ---------- Web app ----------
+let builder = WebApplication.CreateBuilder()
+builder.Services.AddSingleton<TelemetryState>() |> ignore
+
+// Choose your interface: usually "eth0" or "wlan0"
+let iface =
+    match Environment.GetEnvironmentVariable("TELEMETRY_IFACE") with
+    | null | "" -> "eth0"
+    | s when String.IsNullOrWhiteSpace(s) -> "eth0"
+    | s -> s
+
+builder.Services.AddHostedService<Sampler>(fun sp ->
+    new Sampler(sp.GetRequiredService<TelemetryState>(), iface)
+) |> ignore
+
+let app = builder.Build()
+
+app.MapGet("/", Func<IResult>(fun () ->
+    Results.Text("Pi Telemetry Agent running. Try /health or /stats")
+)) |> ignore
+
+app.MapGet("/health", Func<TelemetryState, IResult>(fun state ->
+    match state.Get() with
+    | None -> Results.Json({| ok = false; reason = "No sample yet" |})
+    | Some s ->
+        let ok = s.Alerts.IsEmpty
+        Results.Json({| ok = ok; timeUtc = s.TimestampUtc; alerts = s.Alerts |})
+)) |> ignore
+
+app.MapGet("/stats", Func<TelemetryState, IResult>(fun state ->
+    match state.Get() with
+    | None -> Results.Problem("No sample yet")
+    | Some s -> Results.Json(s)
+)) |> ignore
+
+// Prometheus-ish text (simple)
+app.MapGet("/metrics", Func<TelemetryState, IResult>(fun state ->
+    match state.Get() with
+    | None -> Results.Text("pi_telemetry_up 0\n", "text/plain")
+    | Some s ->
+        let lines =
+            [ "pi_telemetry_up 1"
+              match s.CpuTempC with Some t -> sprintf "pi_cpu_temp_c %f" t | None -> "pi_cpu_temp_c NaN"
+              match s.Load1 with Some v -> sprintf "pi_load1 %f" v | None -> "pi_load1 NaN"
+              match s.MemTotalKb, s.MemAvailKb with
+              | Some t, Some a -> sprintf "pi_mem_used_pct %f" (100.0 * (1.0 - float a / float t))
+              | _ -> "pi_mem_used_pct NaN"
+              match s.DiskTotalBytes, s.DiskAvailBytes with
+              | Some t, Some a -> sprintf "pi_disk_used_pct %f" (100.0 * (1.0 - float a / float t))
+              | _ -> "pi_disk_used_pct NaN" ]
+        Results.Text(String.Join("\n", lines) + "\n", "text/plain")
+)) |> ignore
+
+app.Run()
