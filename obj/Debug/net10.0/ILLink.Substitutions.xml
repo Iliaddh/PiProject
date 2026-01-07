@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <assembly fullname="pi-telemetry">
+    <resource name="FSharpSignatureData.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpSignatureCompressedData.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpSignatureDataB.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpSignatureCompressedDataB.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpOptimizationData.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpOptimizationCompressedData.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpOptimizationDataB.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpOptimizationCompressedDataB.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpOptimizationInfo.pi-telemetry" action="remove"></resource>
+    <resource name="FSharpSignatureInfo.pi-telemetry" action="remove"></resource>
+  </assembly>
+</linker>

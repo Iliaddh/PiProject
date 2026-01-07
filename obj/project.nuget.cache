@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "mw++ICUTdNw=",
+  "success": true,
+  "projectFilePath": "/home/iliaddh/pi-telemetry/pi-telemetry.fsproj",
+  "expectedPackageFiles": [
+    "/home/iliaddh/.nuget/packages/fsharp.core/10.0.101/fsharp.core.10.0.101.nupkg.sha512"
+  ],
+  "logs": []
+}
