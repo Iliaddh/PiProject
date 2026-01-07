@@ -85,3 +85,25 @@ module Linux =
                     | _ -> None
                 else None
             )
+// ---------- In-memory state ----------
+type Sample =
+    { TimestampUtc: DateTime
+      CpuTempC: float option
+      Load1: float option
+      Load5: float option
+      Load15: float option
+      MemTotalKb: int64 option
+      MemAvailKb: int64 option
+      DiskTotalBytes: int64 option
+      DiskAvailBytes: int64 option
+      RxBytes: int64 option
+      TxBytes: int64 option
+      Alerts: string list }
+
+type TelemetryState() =
+    let gate = obj()
+    let mutable last : Sample option = None
+    member _.Get() =
+        lock gate (fun () -> last)
+    member _.Set(v: Sample) =
+        lock gate (fun () -> last <- Some v)
